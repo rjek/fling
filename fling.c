@@ -487,11 +487,32 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
             continue;
 
         case CATCH_READWRITE:
+            r = read(sock, buf, BUFSIZ);
+            if (r == -1) {
+                state = FLING_COMPLETE;
+                continue;
+            }
+
+            w = write(fd, buf, r);
+            if (w == -1) {
+                fprintf(stderr, "write: %s\n", strerror(errno));
+                close(sock);
+                return EXIT_FAILURE;
+            }
+
+            if (w != r) {
+                    fprintf(stderr, "write: short write to blocking file\n");
+                    close(sock);
+                    return EXIT_FAILURE;
+            }
+
+            total_read += r;
+            continue;
 
         case CATCH_COMPLETE:
+            break;
 
         case CATCH_PANIC:
-            fprintf(stderr, "on dear.\n");
             close(sock);
             return EXIT_FAILURE;
         }
