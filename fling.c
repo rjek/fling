@@ -220,76 +220,76 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
 
     do {
         switch (state) {
-            case FLING_SPLICE:
-                w = splice(fd, NULL, sock, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
-                if (w == -1) {
-                    fprintf(stderr, "splice: %s\n", strerror(errno));
-                    close(sock);
-                    return EXIT_FAILURE;
-                }
+        case FLING_SPLICE:
+            w = splice(fd, NULL, sock, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
+            if (w == -1) {
+                fprintf(stderr, "splice: %s\n", strerror(errno));
+                close(sock);
+                return EXIT_FAILURE;
+            }
 
-                if (w == 0) {
-                    /* no more to write */
+            if (w == 0) {
+                /* no more to write */
+                state = FLING_COMPLETE;
+                continue;
+            }
+
+            total_written += w;
+
+            /* splice next bit */
+            continue;
+        
+        case FLING_SENDFILE:
+            w = sendfile(sock, fd, NULL, LUMP_SIZE);
+            if (w == -1) {
+                fprintf(stderr, "sendfile: %s\n", strerror(errno));
+                close(sock);
+                return EXIT_FAILURE;
+            }
+
+            if (w == 0) {
+                /* this isn't defined to mean no more data, so let's check */
+                struct stat statbuf;
+                if (fstat(0, &statbuf) == -1) {
+                    /* um.  let's assume we're done */
                     state = FLING_COMPLETE;
                     continue;
                 }
 
-                total_written += w;
-
-                /* splice next bit */
-                continue;
-            
-            case FLING_SENDFILE:
-                w = sendfile(sock, fd, NULL, LUMP_SIZE);
-                if (w == -1) {
-                    fprintf(stderr, "sendfile: %s\n", strerror(errno));
-                    close(sock);
-                    return EXIT_FAILURE;
-                }
-
-                if (w == 0) {
-                    /* this isn't defined to mean no more data, so let's check */
-                    struct stat statbuf;
-                    if (fstat(0, &statbuf) == -1) {
-                        /* um.  let's assume we're done */
-                        state = FLING_COMPLETE;
-                        continue;
-                    }
-
-                    if (total_written >= statbuf.st_size) {
-                        state = FLING_COMPLETE;
-                        continue;
-                    }
-                }
-
-                total_written += w;
-
-                continue;
-            case FLING_READWRITE:
-                r = read(fd, buf, BUFSIZ);
-                if (r == -1) {
+                if (total_written >= statbuf.st_size) {
                     state = FLING_COMPLETE;
                     continue;
                 }
-                int w = write(sock, buf, r);
-                if (w == -1) {
-                    fprintf(stderr, "write: %s\n", strerror(errno));
-                    close(sock);
-                    return EXIT_FAILURE;
-                }
+            }
 
-                if (w != r) {
-                    fprintf(stderr, "write: short write to blocking socket\n");
-                    close(sock);
-                    return EXIT_FAILURE;
-                }
-
-                total_written += w;
-                continue;
+            total_written += w;
+            continue;
             
-            case FLING_PANIC:
-            case FLING_COMPLETE:
+        case FLING_READWRITE:
+            r = read(fd, buf, BUFSIZ);
+            if (r == -1) {
+                state = FLING_COMPLETE;
                 continue;
+            }
+            int w = write(sock, buf, r);
+            if (w == -1) {
+                fprintf(stderr, "write: %s\n", strerror(errno));
+                close(sock);
+                return EXIT_FAILURE;
+            }
+
+            if (w != r) {
+                fprintf(stderr, "write: short write to blocking socket\n");
+                close(sock);
+                return EXIT_FAILURE;
+            }
+
+            total_written += w;
+            continue;
+        
+        case FLING_PANIC:
+        case FLING_COMPLETE:
+            continue;
         }
     } while (state != FLING_COMPLETE);
 
