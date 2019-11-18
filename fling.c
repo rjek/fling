@@ -78,6 +78,21 @@ static void print_stats(FILE *f, off64_t bytes, const struct timespec * restrict
         pretty_transferred, bytes, passed, pretty_speed);
 }
 
+static void maximise_pipe_length(int fd)
+{
+    int pipez, npipez;
+
+    pipez = fcntl(fd, F_GETPIPE_SZ);
+    if (pipez != -1 && pipez < LUMP_SIZE) {
+        if (pipez < LUMP_SIZE) {
+            npipez = LUMP_SIZE;
+            while (fcntl(fd, F_SETPIPE_SZ, npipez) == -1 && npipez >= pipez) {
+                npipez -= 4096; /* should really query page size, but meh */
+            }
+        }
+    }
+}
+
 static int connect_dest(const char * restrict host, const char * restrict port) 
 {
     struct addrinfo hints;
@@ -166,6 +181,8 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
             fprintf(stdout, "unable to obtain start time, statistics will be nonsense.\n");
         }
     }
+
+    maximise_pipe_length(fd);
 
     if ((w = splice(fd, NULL, sock, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE)) == -1) {
         /* splicing not possible */
@@ -399,7 +416,9 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
             fprintf(stderr, "unable to create pipe, falling back to read/read\n");
         }
         state = CATCH_READWRITE;
-    } 
+    } else {
+        maximise_pipe_length(p[0]);
+    }
 
     do {
         switch (state) {
