@@ -29,9 +29,9 @@ static void usage(const char * restrict name, FILE * restrict f)
     fprintf(f, "  -v\tverbose\n");
     fprintf(f, "  -r\treceive instead of send\n");
     fprintf(f, "where:\n");
-    fprintf(f, "  sending: host port");
-    fprintf(f, "  receiving: host port");
-    fprintf(f, "  receiving: port");
+    fprintf(f, "  sending: host port\n");
+    fprintf(f, "  receiving: host port\n");
+    fprintf(f, "  receiving: port\n");
     fprintf(f, "file:\n");
     fprintf(f, "  a UNIX pipe\n");
     fprintf(f, "  a regular file\n");
@@ -264,7 +264,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
 
             total_written += w;
             continue;
-            
+
         case FLING_READWRITE:
             r = read(fd, buf, BUFSIZ);
             if (r == -1) {
