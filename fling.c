@@ -34,10 +34,12 @@ static void usage(const char * restrict name, FILE * restrict f)
     fprintf(f, "  sending: host port\n");
     fprintf(f, "  receiving: host port\n");
     fprintf(f, "  receiving: port\n");
-    fprintf(f, "file:\n");
+    fprintf(f, "stdin when sending:\n");
     fprintf(f, "  a UNIX pipe\n");
     fprintf(f, "  a regular file\n");
     fprintf(f, "  anything else but that comes with excitement and risk\n");
+    fprintf(f, "stdout when receiving:\n");
+    fprintf(f, "  probably anything that is not a block device.\n");
 }
 
 static bool verbose = false;
