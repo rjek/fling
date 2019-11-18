@@ -18,6 +18,7 @@
 #include <time.h>
 #include <poll.h>
 #include <netdb.h>
+#include <netinet/tcp.h>
 
 static void usage(const char * restrict name, FILE * restrict f)
 {
@@ -154,6 +155,10 @@ static int connect_dest(const char * restrict host, const char * restrict port)
     }
 
     freeaddrinfo(result);
+
+    s = 1;
+
+    setsockopt(sfd, IPPROTO_TCP, TCP_CORK, &s, sizeof(s));
 
     return sfd;
 }
