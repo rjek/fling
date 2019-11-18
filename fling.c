@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <signal.h>
 #include <math.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -28,6 +29,7 @@ static void usage(const char * restrict name, FILE * restrict f)
     fprintf(f, "options:\n");
     fprintf(f, "  -v\tverbose\n");
     fprintf(f, "  -r\treceive instead of send\n");
+    fprintf(f, "  -p\tperiodically print transfer progress\n");
     fprintf(f, "where:\n");
     fprintf(f, "  sending: host port\n");
     fprintf(f, "  receiving: host port\n");
@@ -39,6 +41,21 @@ static void usage(const char * restrict name, FILE * restrict f)
 }
 
 static bool verbose = false;
+
+typedef enum {
+    PROGRESS_NONE,
+    PROGRESS_YES,
+    PROGRESS_PRINT,
+} progress_state;
+
+progress_state progress = PROGRESS_NONE;
+
+static void sig_handler(int sig)
+{
+    if (sig == SIGALRM && progress == PROGRESS_YES) {
+        progress = PROGRESS_PRINT;
+    }
+}
 
 #define LUMP_SIZE (1024 * 1024)
 
@@ -60,7 +77,7 @@ static void pretty_bytes(off64_t bytes, char * restrict buff, size_t buffz)
     }
 }
 
-static void print_stats(FILE *f, off64_t bytes, const struct timespec * restrict start_time)
+static int stats(off64_t bytes, const struct timespec * restrict start_time, char *buf, size_t bufz)
 {
     struct timespec current_time = { .tv_sec = 0, .tv_nsec = 0 };
     double start, current, passed;
@@ -75,8 +92,46 @@ static void print_stats(FILE *f, off64_t bytes, const struct timespec * restrict
     pretty_bytes(bytes, pretty_transferred, sizeof pretty_transferred);
     pretty_bytes(bytes / passed, pretty_speed, sizeof pretty_speed);
 
-    fprintf(f, "%s (%ld bytes) transferred in %f seconds, %s/sec.\n", 
+    return snprintf(buf, bufz, "%s (%ld bytes) transferred in %.2f seconds, %s/sec.", 
         pretty_transferred, bytes, passed, pretty_speed);
+}
+
+static void print_stats(FILE *f, off64_t bytes, const struct timespec * restrict start_time)
+{
+    char buf[128];
+    (void) stats(bytes, start_time, buf, sizeof buf);
+    (void) fprintf(f, "%s\n", buf);
+    fflush(f);
+}
+
+static void print_progress(FILE *f, off64_t bytes, const struct timespec * restrict start_time)
+{
+    char buf[128];
+    static int prevz = 0;
+    int statz = 0;
+    
+    for (int i = prevz; i > 0; i--) {
+        fputc('\b', f);
+    }
+
+    if (start_time == NULL) {
+        /* we're just removing the progress info */
+        fflush(f);
+        return;
+    }
+
+    statz = stats(bytes, start_time, buf, sizeof buf);
+    (void) fprintf(f, "%s", buf);
+    
+    if (statz < prevz) {
+        for (int i = prevz - statz; i > 0; i--) {
+            fputc(' ', f);
+        }
+    }
+
+    fflush(f);
+
+    prevz = (prevz > statz) ? prevz : statz;
 }
 
 static void maximise_pipe_length(int fd)
@@ -187,6 +242,10 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
         }
     }
 
+    if (progress == PROGRESS_YES) {
+        alarm(1);
+    }
+
     maximise_pipe_length(fd);
 
     if ((w = splice(fd, NULL, sock, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE)) == -1) {
@@ -219,6 +278,12 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     }
 
     do {
+        if (progress == PROGRESS_PRINT) {
+            progress = PROGRESS_YES;
+            print_progress(stdout, total_written, &start_time);
+            alarm(1);
+        }
+
         switch (state) {
         case FLING_SPLICE:
             w = splice(fd, NULL, sock, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
@@ -294,6 +359,10 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     } while (state != FLING_COMPLETE);
 
     close(sock);
+
+    if (progress != PROGRESS_NONE) {
+        print_progress(stdout, 0, NULL);
+    }
 
     if (verbose) {
         print_stats(stdout, total_written, &start_time);
@@ -416,6 +485,10 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
 
     close(srv);
 
+    if (progress == PROGRESS_YES) {
+        alarm(1);
+    }
+
     if (pipe(p) == -1) {
         if (verbose) {
             fprintf(stderr, "unable to create pipe, falling back to read/read\n");
@@ -426,6 +499,12 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
     }
 
     do {
+        if (progress == PROGRESS_PRINT) {
+            progress = PROGRESS_YES;
+            print_progress(stderr, total_read, &start_time);
+            alarm(1);
+        }
+
         switch (state) {
         case CATCH_SPLICE:
             /* read data from the socket into the pipe */
@@ -489,7 +568,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
         case CATCH_READWRITE:
             r = read(sock, buf, BUFSIZ);
             if (r == -1) {
-                state = FLING_COMPLETE;
+                state = CATCH_COMPLETE;
                 continue;
             }
 
@@ -520,6 +599,10 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
 
     close(sock);
 
+    if (progress != PROGRESS_NONE) {
+        print_progress(stderr, 0, NULL);
+    }
+
     if (verbose) {
         print_stats(stderr, total_read, &start_time);
     }
@@ -532,25 +615,30 @@ int main(int argc, char *argv[])
     int opt;
     bool receiving = false;
 
-    while ((opt = getopt(argc, argv, "hvr")) != -1) {
+    while ((opt = getopt(argc, argv, "hvrp")) != -1) {
         switch (opt) {
-            case 'h':
-                usage(argv[0], stdout);
-                exit(EXIT_SUCCESS);
-                break;
-            case 'v':
-                verbose = true;
-                break;
-            case 'r':
-                receiving = true;
-                break;
-            default:
-                fprintf(stderr, "unknown option: %c\n", opt);
-                usage(argv[0], stderr);
-                exit(EXIT_FAILURE);
-                break;
+        case 'h':
+            usage(argv[0], stdout);
+            exit(EXIT_SUCCESS);
+            break;
+        case 'v':
+            verbose = true;
+            break;
+        case 'p':
+            progress = PROGRESS_YES;
+            break;
+        case 'r':
+            receiving = true;
+            break;
+        default:
+            fprintf(stderr, "unknown option: %c\n", opt);
+            usage(argv[0], stderr);
+            exit(EXIT_FAILURE);
+            break;
         }
-    }  
+    }
+
+    signal(SIGALRM, sig_handler);
 
     if (receiving == false) {
         if (argc - optind != 2) {
