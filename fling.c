@@ -139,13 +139,18 @@ static void print_progress(FILE *f, off64_t bytes, const struct timespec * restr
 static void maximise_pipe_length(int fd)
 {
     int pipez, npipez;
+    int pagez = (int) sysconf(_SC_PAGESIZE);
+
+    if (pagez < 1) {
+        pagez = 4096;
+    }
 
     pipez = fcntl(fd, F_GETPIPE_SZ);
     if (pipez != -1 && pipez < LUMP_SIZE) {
         if (pipez < LUMP_SIZE) {
             npipez = LUMP_SIZE;
             while (fcntl(fd, F_SETPIPE_SZ, npipez) == -1 && npipez >= pipez) {
-                npipez -= 4096; /* should really query page size, but meh */
+                npipez -= pagez;
             }
         }
     }
