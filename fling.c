@@ -404,7 +404,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     return EXIT_SUCCESS;
 }
 
-static int bind_listen(const char * restrict host, const char * restrict port) 
+static int bind_listen(const char * restrict host, const char * restrict port, int boundport[1])
 {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
@@ -420,14 +420,13 @@ static int bind_listen(const char * restrict host, const char * restrict port)
     hints.ai_addr = NULL;
     hints.ai_next = NULL;
 
-    s = getaddrinfo(host, port, &hints, &result);
+    s = getaddrinfo(host, port != NULL ? port : "0", &hints, &result);
     if (s != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
         return EXIT_FAILURE;
     }
 
     for (rp = result; rp != NULL; rp = rp->ai_next) {
-
         if (verbose) {
              getnameinfo(rp->ai_addr, rp->ai_addrlen, 
                 ahost, sizeof ahost,
@@ -466,9 +465,32 @@ static int bind_listen(const char * restrict host, const char * restrict port)
         exit(EXIT_FAILURE);
     }
 
-    fprintf(stderr, "listening.\n");
+    if (verbose) {
+        fprintf(stderr, "listening.\n");
+    }
 
     freeaddrinfo(result);
+
+    /* obtain port actually listened on */
+    if (port == NULL || strcmp(port, "0") == 0) {
+        struct sockaddr addr;
+        socklen_t addrlen = sizeof addr;
+        getsockname(sfd, &addr, &addrlen);
+
+        switch (addr.sa_family) {
+        case AF_INET:
+            *boundport = ntohs(((struct sockaddr_in *)(&addr))->sin_port);
+            break;
+        case AF_INET6:
+            *boundport = ntohs(((struct sockaddr_in6 *)(&addr))->sin6_port);
+            break;
+        default:
+            *boundport = -1;
+        }
+
+        fprintf(stderr, "bound to port %d\n", *boundport);
+        fflush(stderr);
+    }
 
     return sfd;
 }
@@ -483,7 +505,8 @@ typedef enum {
 
 static int catch(const char * restrict host, const char * restrict port, int fd)
 {
-    int srv = bind_listen(host, port);
+    int boundport;
+    int srv = bind_listen(host, port, &boundport);
     int sock = accept(srv, NULL, NULL);
     int pr;
 
