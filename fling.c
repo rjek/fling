@@ -547,10 +547,41 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
             /* write data fro the pipe to the output */
             w = splice(p[0], NULL, fd, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
             if (w == -1) {
-                /* erk, writing failed, abort */
-                fprintf(stderr, "splicing to output failed: %s\n", strerror(errno));
-                close(sock);
-                return EXIT_FAILURE;
+                /* writing failed, probably a tty or similar.
+                 * read the data back out of the pipe the old fasioned way,
+                 * and write it out before falling back to read/write mode.
+                 */
+                int spliceerr = errno;
+                char *fbuff = malloc(r);
+
+                if (fbuff == NULL) {
+                    fprintf(stderr, "splicing to output failed: %s\n", strerror(spliceerr));
+                    fprintf(stderr, "and then allocating memory for fallback failed: %s\n", strerror(errno));
+                    close(sock);
+                    return EXIT_FAILURE;
+                }
+
+                int fbr = read(p[0], fbuff, r);
+
+                if (fbr != r) {
+                    fprintf(stderr, "fallback mode failed, short read from pipe.\n");
+                    close(sock);
+                    free(fbuff);
+                    return EXIT_FAILURE;
+                }
+
+                int fbw = write(fd, fbuff, fbr);
+
+                if (fbw != r) {
+                    fprintf(stderr, "fallback mode failed, short write to output.\n");
+                    close(sock);
+                    free(fbuff);
+                    return EXIT_FAILURE;
+                }
+
+                free(fbuff);
+
+                state = CATCH_READWRITE;
             }
 
             total_read += r;
@@ -574,7 +605,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
 
         case CATCH_READWRITE:
             r = read(sock, buf, BUFSIZ);
-            if (r == -1) {
+            if (r <= 0) {
                 state = CATCH_COMPLETE;
                 continue;
             }
