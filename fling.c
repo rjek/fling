@@ -61,41 +61,67 @@ static void sig_handler(int sig)
 
 #define LUMP_SIZE (1024 * 1024)
 
-static void pretty_bytes(off64_t bytes, char * restrict buff, size_t buffz)
+static void pretty_bytes(off64_t bytes, char * restrict buf, size_t bufz)
 {
-    double count = bytes;
+    double t = bytes;
     static const char *suffix[] = { "B", "kB", "MB", "GB", "TB", "PB", "EB" };
     int sidx = 0;
     
-    while (count >= 1024 && sidx < 7) {
-        count /= 1024;
+    while (t >= 1024 && sidx < 7) {
+        t /= 1024;
         sidx++;
     }
 
-    if (count - floor(count) == 0.0) {
-        snprintf(buff, buffz, "%d %s", (int)count, suffix[sidx]);
+    if (t - floor(t) == 0.0) {
+        snprintf(buf, bufz, "%d %s", (int)t, suffix[sidx]);
     } else {
-        snprintf(buff, buffz, "%.1f %s", count, suffix[sidx]);
+        snprintf(buf, bufz, "%.1f %s", t, suffix[sidx]);
     }
 }
 
-static int stats(off64_t bytes, const struct timespec * restrict start_time, char *buf, size_t bufz)
+static void pretty_timespec(const struct timespec * restrict time, char * restrict buf, size_t bufz)
+{
+    if (time->tv_sec > 0) {
+        double passed = time->tv_sec + (time->tv_nsec * 0.000000001);
+        snprintf(buf, bufz, "%.2f seconds", passed);
+        return;
+    }
+
+    static const char *suffix[] = { "ns", "µs", "ms" };
+    double t = time->tv_nsec;
+    int sidx = 0;
+
+    while (t > 1000 && sidx < 3) {
+        t /= 1000;
+        sidx++;
+    }
+
+    if (t - floor(t) == 0.0) {
+        snprintf(buf, bufz, "%d %s", (int) t, suffix[sidx]);
+    } else {
+        snprintf(buf, bufz, "%0.2f %s", t, suffix[sidx]);
+    }
+}
+
+static int stats(off64_t bytes, const struct timespec * restrict start_time, char * restrict buf, size_t bufz)
 {
     struct timespec current_time = { .tv_sec = 0, .tv_nsec = 0 };
-    double start, current, passed;
-    char pretty_transferred[128], pretty_speed[128];
+    struct timespec passed;
+    double passed_in_sec;
+    char pretty_transferred[128], pretty_speed[128], pretty_time[128];
 
     (void) clock_gettime(CLOCK_MONOTONIC_RAW, &current_time);
 
-    current = current_time.tv_sec + (current_time.tv_nsec * 0.000000001);
-    start = start_time->tv_sec + (start_time->tv_nsec * 0.000000001);
-    passed = current - start;
+    passed.tv_sec = current_time.tv_sec - start_time->tv_sec;
+    passed.tv_nsec = current_time.tv_nsec - start_time->tv_sec;
+    passed_in_sec = passed.tv_sec + (passed.tv_nsec * 0.000000001);
 
     pretty_bytes(bytes, pretty_transferred, sizeof pretty_transferred);
-    pretty_bytes(bytes / passed, pretty_speed, sizeof pretty_speed);
+    pretty_bytes(bytes / passed_in_sec, pretty_speed, sizeof pretty_speed);
+    pretty_timespec(&passed, pretty_time, sizeof pretty_time);
 
-    return snprintf(buf, bufz, "%s (%ld bytes) transferred in %.2f seconds, %s/sec.", 
-        pretty_transferred, bytes, passed, pretty_speed);
+    return snprintf(buf, bufz, "%s (%ld bytes) transferred in %s, %s/sec.", 
+        pretty_transferred, bytes, pretty_time, pretty_speed);
 }
 
 static void print_stats(FILE *f, off64_t bytes, const struct timespec * restrict start_time)
