@@ -36,6 +36,7 @@ static void usage(const char * restrict name, FILE * restrict f)
     fprintf(f, "  -p\tperiodically print transfer progress\n");
     fprintf(f, "where:\n");
     fprintf(f, "  sending: host port\n");
+    fprintf(f, "  sending: [user@]host:destination_file (requires ssh and fling at remote end)\n");
     fprintf(f, "  receiving: host port\n");
     fprintf(f, "  receiving: port\n");
     fprintf(f, "stdin when sending:\n");
