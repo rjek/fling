@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <signal.h>
 #include <math.h>
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -16,10 +17,13 @@
 #include <sys/types.h>
 #include <sys/sendfile.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <poll.h>
 #include <netdb.h>
 #include <netinet/tcp.h>
+
+#define FLING_PROTOCOL "fling 1.0"
 
 static void usage(const char * restrict name, FILE * restrict f)
 {
@@ -488,8 +492,9 @@ static int bind_listen(const char * restrict host, const char * restrict port, i
             *boundport = -1;
         }
 
-        fprintf(stderr, "bound to port %d\n", *boundport);
+        fprintf(stderr, "fling ephemeral port %d\n", *boundport);
         fflush(stderr);
+        fclose(stderr);
     }
 
     return sfd;
@@ -697,12 +702,277 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
     return EXIT_SUCCESS;
 }
 
+#define PIPER 0
+#define PIPEW 1
+
+static inline void close_pipe(int pipe[2])
+{
+    close(pipe[PIPER]);
+    close(pipe[PIPEW]);
+}
+
+static pid_t spawn_child(const char prog[1], char *const argv[], int fds[3])
+{
+    int stdinpipe[2], stdoutpipe[2], stderrpipe[2], sigpipe[2];
+    pid_t child;
+    int oerr = 0;
+
+    if (pipe(stdinpipe) == -1) {
+        return -1;
+    }
+
+    if (pipe(stdoutpipe) == -1) {
+        goto errout_stdoutpipe;
+    }
+
+    if (pipe(stderrpipe) == -1) {
+        goto errout_stderrpipe;
+    }
+
+    if (pipe(sigpipe) == -1) {
+        goto errout_sigpipe;
+    }
+
+    switch (child = fork()) {
+    case -1:
+        goto errout_fork;
+    case 0:
+        if (dup2(stdinpipe[PIPER], STDIN_FILENO) == -1) {
+            oerr = errno;
+            write(sigpipe[PIPEW], "dup2\n", 5);
+            exit(oerr);
+        }
+        if (dup2(stdoutpipe[PIPEW], STDOUT_FILENO) == -1) {
+            oerr = errno;
+            write(sigpipe[PIPEW], "dup2\n", 5);
+            exit(oerr);
+        }
+        if (dup2(stderrpipe[PIPEW], STDERR_FILENO) == -1) {
+            oerr = errno;
+            write(sigpipe[PIPEW], "dup2\n", 5);
+            exit(oerr);
+        }
+
+        close_pipe(stdinpipe);
+        close_pipe(stdoutpipe);
+        close_pipe(stderrpipe);
+        close(sigpipe[PIPER]);
+        fcntl(sigpipe[PIPEW], F_SETFD, FD_CLOEXEC);
+
+        (void) execvp(prog, argv);
+        oerr = errno;
+        write(sigpipe[PIPEW], "exec\n", 5);
+        exit(oerr);
+
+    default:
+        fds[0] = stdinpipe[PIPEW];
+        fds[1] = stdoutpipe[PIPER];
+        fds[2] = stderrpipe[PIPER];
+        close(stdinpipe[PIPER]);
+        close(stdoutpipe[PIPEW]);
+        close(stderrpipe[PIPEW]);
+        close(sigpipe[PIPEW]);
+
+        /* wait on the read end of the signalling pipe - it will either
+         * return an error reason, or hang up on succesful exec.
+         */
+
+        char buf[BUFSIZ];
+        ssize_t r = read(sigpipe[PIPER], buf, BUFSIZ);
+
+        if (r == 0) {
+            /* EOF, exec happened */
+            close(sigpipe[PIPER]);
+            return child;
+        }
+
+        /* there was an error, we don't do anything with the reason but
+         * we return the exit code to the caller
+         */
+        
+        int wstatus;
+        (void) waitpid(child, &wstatus, 0);
+
+        if (WIFEXITED(wstatus)) {
+            errno = WEXITSTATUS(wstatus);
+        }
+
+        return -1;
+    }
+ 
+errout_fork:
+    close_pipe(sigpipe);
+errout_sigpipe:
+    close_pipe(stderrpipe);
+errout_stderrpipe:
+    close_pipe(stdoutpipe);
+errout_stdoutpipe:
+    close_pipe(stdinpipe);
+    return -1;
+}
+
+#undef PIPER
+#undef PIPEW
+
+static int prep_ssh(const char * restrict hostspec, char * restrict hostout,
+    size_t hostz, char * restrict portout, size_t portz)
+{
+    char *speccpy = strdup(hostspec);
+    char *host = NULL;
+    char *user = NULL;
+    char *path = NULL;
+    int fds[3];
+    int control, child, status, eport, controlr;
+    char *sshbin = getenv("FLING_SSH") ? getenv("FLING_SSH") : "ssh";
+    char *flingbin = getenv("FLING_REMOTE_EXE") ? getenv("FLING_REMOTE_EXE") : "fling";
+    char *argv[16];
+    unsigned int argc = 0;
+    char controlbuf[BUFSIZ];
+
+    if (speccpy == NULL) {
+        return -1;
+    }
+
+    path = strchr(speccpy, ':'); /* existance of : is guarded by caller */
+    *path = '\0';
+    path++;
+
+    user = strchr(speccpy, '@');
+    if (user != NULL) {
+        host = user + 1;
+        *user = '\0';
+        user = speccpy;
+    } else {
+        host = speccpy;
+    }
+
+    if (strlen(path) == 0) {
+        fprintf(stderr, "no destination filename specified\n");
+        return -1;
+    }
+
+    strncpy(hostout, host, hostz);
+
+#define ADD_ARG(x) do {\
+    assert(argc < sizeof argv / sizeof (char *));\
+    argv[argc++] = ((x)); \
+    } while(0)
+
+    /* run ssh in control socket mode first to authenticate and daemonise */
+
+    ADD_ARG(sshbin);
+    ADD_ARG("-oControlMaster=auto");
+    ADD_ARG("-oControlPath=/tmp/fling.%i.%u.%C");
+    ADD_ARG("-oControlPersist=5s");  
+    if (user != NULL) {
+        ADD_ARG("-l");
+        ADD_ARG(user);
+    }
+    ADD_ARG(host);
+    snprintf(controlbuf, sizeof controlbuf, "%s -!", flingbin);
+    ADD_ARG(controlbuf);
+    ADD_ARG(NULL);
+
+    control = spawn_child(sshbin, argv, fds);
+    if (control == -1) {
+        fprintf(stderr, "unable to spawn control ssh: %s\n", strerror(errno));
+        goto errout;
+    }
+
+    controlr = read(fds[2], controlbuf, sizeof controlbuf);
+    controlbuf[controlr] = '\0';
+
+    if (controlr < 1) {
+        /* error reading or eof */
+        fprintf(stderr, "unable to spawn control ssh and check remote fling version\n");
+        goto errout_spawn_control;
+    }
+
+    waitpid(control, &status, 0);
+
+    close(fds[0]);
+    close(fds[1]);
+    close(fds[2]);
+
+    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+        fprintf(stderr, "control ssh returned error %d: %s\n", WEXITSTATUS(status), controlbuf);
+        goto errout;
+    }
+
+    if (strcmp(controlbuf, FLING_PROTOCOL) != 0) {
+        fprintf(stderr, "mismatched fling protocols, remote end reports %s\n",
+            controlbuf);
+        goto errout;
+    }
+
+    /* We have a daemonised ssh client running, spawn a new connection through
+     * it to launch remote fling
+     */
+    argc = 0;
+
+    ADD_ARG(sshbin);
+    ADD_ARG("-oControlPath=/tmp/fling.%i.%u.%C");
+    if (user != NULL) {
+        ADD_ARG("-l");
+        ADD_ARG(user);
+    }
+    ADD_ARG(host);
+    snprintf(controlbuf, sizeof controlbuf, "%s -r 0 > %s", flingbin, path);
+    ADD_ARG(controlbuf);
+       
+    ADD_ARG(NULL);
+
+    child = spawn_child(sshbin, argv, fds);
+    if (child == -1) {
+        fprintf(stderr, "unable to spawn remote fling: %s\n", strerror(errno));
+        goto errout_spawn_control;
+    }
+
+    controlr = read(fds[2], controlbuf, sizeof controlbuf);
+    controlbuf[controlr] = '\0';
+
+    if (controlr < 1) {
+        /* error reading or eof */
+        fprintf(stderr, "unable to spawn remote fling\n");
+        goto errout_spawn_fling;
+    }
+
+    controlr = sscanf(controlbuf, "fling ephemeral port %d\n", &eport);
+    if (controlr < 0 || controlr == EOF) {
+        fprintf(stderr, "unable to parse repsonse of remote fling: %s\n", controlbuf);
+        goto errout_spawn_fling;
+    }
+
+    snprintf(portout, portz, "%d", eport);
+    
+    close(fds[0]);
+    close(fds[1]);
+    close(fds[2]);
+
+    free(speccpy);
+    return child;
+
+#undef ADD_ARG
+
+errout_spawn_fling:
+    kill(child, SIGTERM);
+    waitpid(child, NULL, 0);
+errout_spawn_control:
+    close(fds[0]);
+    close(fds[1]);
+    close(fds[2]);
+    kill(control, SIGTERM);
+errout:
+    free(speccpy);
+    return -1;
+}
+
 int main(int argc, char *argv[])
 {
     int opt;
     bool receiving = false;
 
-    while ((opt = getopt(argc, argv, "hvrp")) != -1) {
+    while ((opt = getopt(argc, argv, "hvrp!")) != -1) {
         switch (opt) {
         case 'h':
             usage(argv[0], stdout);
@@ -717,6 +987,9 @@ int main(int argc, char *argv[])
         case 'r':
             receiving = true;
             break;
+        case '!':
+            fprintf(stderr, "%s", FLING_PROTOCOL);
+            exit(EXIT_SUCCESS);
         default:
             fprintf(stderr, "unknown option: %c\n", opt);
             usage(argv[0], stderr);
@@ -728,13 +1001,31 @@ int main(int argc, char *argv[])
     signal(SIGALRM, sig_handler);
 
     if (receiving == false) {
-        if (argc - optind != 2) {
+        switch (argc - optind) {
+        case 2:
+            exit(fling(argv[optind], argv[optind + 1], 0));
+        case 1:
+            if (strchr(argv[optind], ':')) {
+                /* establish via ssh */
+                char host[128];
+                char port[128];
+                int pid;
+                pid = prep_ssh(argv[optind], host, sizeof host, port, sizeof port);
+                if (pid < 1) {
+                    exit(EXIT_FAILURE);
+                }
+
+                int r = fling(host, port, 0);
+                kill(pid, SIGTERM);
+                waitpid(pid, NULL, 0);
+                exit(r);
+            }
+            /* fallthrough */
+        default:
             fprintf(stderr, "error: host and port expected.\n");
             usage(argv[0], stderr);
             exit(EXIT_FAILURE);
         }
-
-        exit(fling(argv[optind], argv[optind + 1], 0));
     } else {
         /* receiving */
         const char *host = NULL, *port = NULL;
