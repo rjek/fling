@@ -1,0 +1,33 @@
+fling -- transfer data from stdin over network to destination quickly
+-----------------------------------------------------------------------------
+
+fling transfers data quickly over a trusted network. It does not
+encrypt the data.
+
+You need to run fling on both ends of the transfer. Run it first on
+the receiver:
+
+    fling 12756 > file.dat
+
+And then on the sender:
+
+    flint other.host.address 12756 < file.dat
+
+Note that sender reads the data from its stdin, receiver writes it to
+stdout.
+
+
+To build
+-----------------------------------------------------------------------------
+
+Get source code from <https://github.com/rjek/fling> and build it on
+Linux by running the `make` command. Copy the `fling` binary to the
+target host, or build a fresh copy there.
+
+
+Legalese
+-----------------------------------------------------------------------------
+
+Copyright 2019  Rob Kendrick
+
+License has not been specified. FIXME.
