@@ -1,4 +1,12 @@
-/* build with: gcc -std=c99 -O2 -o fling fling.c */
+/* fling transfer data from stdin over network to destination quickly
+ * Copyright 2019 Codethink Ltd.
+ *
+ * Written by Rob Kendrick <rob.kendrick@codethink.co.uk>
+ *
+ * Licence: MIT <https://opensource.org/licenses/MIT>
+ *
+ * Build with: gcc -std=c99 -O2 -o fling fling.c
+ */
 
 #define _POSIX_C_SOURCE 200112L
 #define _GNU_SOURCE
