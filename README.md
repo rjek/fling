@@ -2,7 +2,9 @@ fling -- transfer data from stdin over network to destination quickly
 -----------------------------------------------------------------------------
 
 fling transfers data quickly over a trusted network. It does not
-encrypt the data.
+encrypt the data. It tries to avoid copying data between kernel and
+userspace where it can; you will see the most improvement over other
+tools like netcat on systems with low memory bandwidth.
 
 You need to run fling on both ends of the transfer. Run it first on
 the receiver:
@@ -15,6 +17,18 @@ And then on the sender:
 
 Note that sender reads the data from its stdin, receiver writes it to
 stdout.
+
+There is also experimental support for setting up the remote "catching"
+fling over ssh.  This works by making an ssh connection with a control
+socket to deal with authentication, then reusing the control socket to
+launch fling at the remote end and have it automatically allocate a port.
+
+The remote end must have fling in $PATH or you must set the FLING_REMOTE_EXE
+environment variable on the sending side to the path of the fling binary
+on the receiving side.
+
+On the sender:
+    fling user@other.host.address:file.dat < file.dat
 
 
 To build
