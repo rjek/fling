@@ -150,10 +150,14 @@ static void print_progress(FILE *f, off64_t bytes, const struct timespec * restr
     char buf[128];
     static int prevz = 0;
     int statz = 0;
-    
+
+    fputc('\r', f);
+
     for (int i = prevz; i > 0; i--) {
-        fputc('\b', f);
+        fputc(' ', f);
     }
+
+    fputc('\r', f);
 
     if (start_time == NULL) {
         /* we're just removing the progress info */
