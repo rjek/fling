@@ -282,7 +282,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     char buf[BUFSIZ]; /* only used for read/write mode */
     struct timespec start_time = { .tv_sec = 0, .tv_nsec = 0 };
 
-    if (verbose) {
+    if (verbose || progress == PROGRESS_YES) {
         if (clock_gettime(CLOCK_MONOTONIC_RAW, &start_time) != 0) {
             fprintf(stdout, "unable to obtain start time, statistics will be nonsense.\n");
         }
@@ -537,7 +537,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
 
     struct timespec start_time = { .tv_sec = 0, .tv_nsec = 0 };
 
-    if (verbose) {
+    if (verbose || progress == PROGRESS_YES) {
         if (clock_gettime(CLOCK_MONOTONIC_RAW, &start_time) != 0) {
             fprintf(stdout, "unable to obtain start time, statistics will be nonsense.\n");
         }
