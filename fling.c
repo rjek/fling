@@ -77,7 +77,7 @@ static void sig_handler(int sig)
 static void pretty_bytes(off64_t bytes, char * restrict buf, size_t bufz)
 {
     double t = bytes;
-    static const char *suffix[] = { "B", "kB", "MB", "GB", "TB", "PB", "EB" };
+    static const char *suffix[] = { "B", "kiB", "MiB", "GiB", "TiB", "PiB", "EiB" };
     int sidx = 0;
     
     while (t >= 1024 && sidx < 7) {
