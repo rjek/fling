@@ -28,6 +28,7 @@ environment variable on the sending side to the path of the fling binary
 on the receiving side.
 
 On the sender:
+
     fling user@other.host.address:file.dat < file.dat
 
 
