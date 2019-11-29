@@ -40,6 +40,16 @@ Linux by running the `make` command. Copy the `fling` binary to the
 target host, or build a fresh copy there.
 
 
+Wire protocol
+-----------------------------------------------------------------------------
+
+The wire protocol, i.e., what gets transferred over the TCP connection
+between two fling processes, is really simple. It is just the bytes of
+the input file to be transferred, no metadata, no checksum, and only
+one file allowed. This is to keep things as simple and fast as
+possible.
+
+
 Legalese
 -----------------------------------------------------------------------------
 
