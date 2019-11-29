@@ -18,14 +18,6 @@ And then on the sender:
 Note that sender reads the data from its stdin, receiver writes it to
 stdout.
 
-The remote end must have fling in $PATH or you must set the FLING_REMOTE_EXE
-environment variable on the sending side to the path of the fling binary
-on the receiving side.
-
-On the sender:
-
-    fling user@other.host.address:file.dat < file.dat
-
 
 Using ssh
 -----------------------------------------------------------------------------
