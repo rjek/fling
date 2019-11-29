@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -eu
+
+./fling -r 12765 > fling.out &
+./fling localhost 12765 < fling
+cmp fling fling.out
+rm fling.out
+echo OK

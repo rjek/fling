@@ -6,3 +6,6 @@ fling: fling.c
 
 clean:
 	rm -f fling
+
+check:
+	./smoke-test
