@@ -18,11 +18,6 @@ And then on the sender:
 Note that sender reads the data from its stdin, receiver writes it to
 stdout.
 
-There is also experimental support for setting up the remote "catching"
-fling over ssh.  This works by making an ssh connection with a control
-socket to deal with authentication, then reusing the control socket to
-launch fling at the remote end and have it automatically allocate a port.
-
 The remote end must have fling in $PATH or you must set the FLING_REMOTE_EXE
 environment variable on the sending side to the path of the fling binary
 on the receiving side.
@@ -45,6 +40,8 @@ it is.
 
 If your ssh command is not called ssh, you can set its name using the
 `FLING_SSH` envionment variable.
+
+The ssh support is currently experimental.
 
 To build
 -----------------------------------------------------------------------------
