@@ -32,6 +32,20 @@ On the sender:
     fling user@other.host.address:file.dat < file.dat
 
 
+Using ssh
+-----------------------------------------------------------------------------
+
+You can have fling run fling on the remote end over ssh. This avoids
+having to start it manually, in a different terminal. You still need
+the fling executable on the remote end. If it's not in the PATH, you
+can set the `FLING_REMOTE_EXE` environment variable to specify where
+it is.
+
+    FLING_REMOTE_EXE="/usr/local/bin/fling" ./fling other.host:data < data
+
+If your ssh command is not called ssh, you can set its name using the
+`FLING_SSH` envionment variable.
+
 To build
 -----------------------------------------------------------------------------
 
