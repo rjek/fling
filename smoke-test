@@ -3,6 +3,7 @@
 set -eu
 
 ./fling -r 12765 > fling.out &
+sleep 1
 ./fling localhost 12765 < fling
 cmp fling fling.out
 rm fling.out
