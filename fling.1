@@ -1,0 +1,82 @@
+.\" Copyright 2019 Lars Wirzenius <liw@liw.fi>
+.TH FLING 1
+.SH NAME
+fling \- quickly copy stdin over trusted network
+.SH SYNOPSIS
+.B fling
+.RB [ -vp ]
+.I host port
+.R <input
+.br
+.B fling
+.RB [ -vp ]
+.RI [ user@ ] host:/path/to/output
+.R <input
+.br
+.B fling
+.RB [ -vp "] " -r
+.I port
+.B  >output
+.SH DESCRIPTION
+.B fling
+transfers data quickly over a trusted network.
+It does not encrypt the data.
+It tries to avoid copying data between kernel and userspace where it can; 
+you will see the most improvement over other tools like netcat on
+systems with low memory bandwidth.
+.PP
+The input is read from stdin, which can be a file or a pipe.
+.PP
+.B fling
+needs to be installed on both ends of the transfer.
+.SH OPTIONS
+.TP
+.BR \-r
+Receive instead of sending.
+The received file is written to stdout.
+.BR \-v
+Be more verbose about what's happening.
+.BR \-p
+Report progress during transfer.
+.SH EXAMPLE
+You need to run fling on both ends of the transfer.
+Run it first on the receiver:
+.PP
+.nf
+.RS
+fling -r 12756 > file.dat
+.RE
+.fi
+.PP
+And then on the sender:
+.PP
+.nf
+.RS
+fling other.host.address 12756 < file.dat
+.RE
+.fi
+.PP
+You can also use the
+.I experimental
+support for ssh, and have
+.B fling
+run itself on the remote end, picking a port automatically.
+This avoids having to start it manually, in a different terminal.
+.PP
+.nf
+.RS
+fling other.host:data < data
+.SH ENVIRONMENT
+.B FLING_REMOTE_EXE
+.RS
+Name of command on the remote end for
+.B fling
+itself.
+Should include full path if not found via PATH.
+.RE
+.PP
+.B FLING_SSH
+.RS
+Name of command locally to use ssh.
+Defaults to "ssh" if not set.
+.RE
