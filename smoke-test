@@ -2,9 +2,10 @@
 
 set -eu
 
-./fling -r 12765 > fling.out &
+./fling -r 12765 > flung.out &
 sleep 1
-./fling localhost 12765 < fling
-cmp fling fling.out
-rm fling.out
+
+dd status=none if=/dev/urandom bs=10247 count=102400 | tee fling.in | ./fling -vp localhost 12765
+cmp fling.in flung.out
+rm fling.in flung.out
 echo OK
