@@ -861,6 +861,7 @@ static int prep_ssh(const char * restrict hostspec, char * restrict hostout,
 
     if (strlen(path) == 0) {
         fprintf(stderr, "no destination filename specified\n");
+        free(speccpy);
         return -1;
     }
 
