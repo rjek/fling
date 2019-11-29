@@ -7,5 +7,5 @@ fling: fling.c
 clean:
 	rm -f fling
 
-check:
+check: fling
 	./smoke-test
