@@ -58,7 +58,7 @@ Legalese
 
 Licence: MIT <https://opensource.org/licenses/MIT>
 
-Copyright 2019  Rob Kendrick
+Copyright 2019 Codethink Ltd.
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
