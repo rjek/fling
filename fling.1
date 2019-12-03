@@ -17,6 +17,11 @@ fling \- quickly copy stdin over trusted network
 .RB [ -vp "] " -r
 .I port
 .B  >output
+.br
+.B fling
+.RB [ -vp "] " -r
+.I port
+.BI -o output
 .SH DESCRIPTION
 .B fling
 transfers data quickly over a trusted network.
@@ -34,10 +39,13 @@ needs to be installed on both ends of the transfer.
 .BR \-r
 Receive instead of sending.
 The received file is written by default to stdout.
+.TP
 .BR \-v
 Be more verbose about what's happening.
+.TP
 .BR \-p
 Report progress during transfer.
+.TP
 .BR \-o
 Specify output file when receiving to be used instead of stdout.
 .SH EXAMPLE
@@ -47,6 +55,14 @@ Run it first on the receiver:
 .nf
 .RS
 fling -r 12756 > file.dat
+.RE
+.fi
+.PP
+Alternatively, you can run this to set the output file with an option:
+.PP
+.nf
+.RS
+fling -r 12756 -o file.dat
 .RE
 .fi
 .PP
