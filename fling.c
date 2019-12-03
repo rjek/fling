@@ -42,6 +42,7 @@ static void usage(const char * restrict name, FILE * restrict f)
     fprintf(f, "  -v\tverbose\n");
     fprintf(f, "  -r\treceive instead of send\n");
     fprintf(f, "  -p\tperiodically print transfer progress\n");
+    fprintf(f, "  -o\tspecify an output file rather than stdout\n");
     fprintf(f, "where:\n");
     fprintf(f, "  sending: host port\n");
     fprintf(f, "  sending: [user@]host:destination_file (requires ssh and fling at remote end)\n");
@@ -985,8 +986,9 @@ int main(int argc, char *argv[])
 {
     int opt;
     bool receiving = false;
+    const char *output = NULL;
 
-    while ((opt = getopt(argc, argv, "hvrp!")) != -1) {
+    while ((opt = getopt(argc, argv, "hvrpo:!")) != -1) {
         switch (opt) {
         case 'h':
             usage(argv[0], stdout);
@@ -1000,6 +1002,9 @@ int main(int argc, char *argv[])
             break;
         case 'r':
             receiving = true;
+            break;
+        case 'o':
+            output = optarg;
             break;
         case '!':
             fprintf(stderr, "%s", FLING_PROTOCOL);
@@ -1057,6 +1062,18 @@ int main(int argc, char *argv[])
                 exit(EXIT_FAILURE);
         }
 
-        exit(catch(host, port, 1));
+        int fd;
+
+        if (output == NULL) {
+            fd = STDOUT_FILENO;
+        } else {
+            fd = open(output, O_CREAT | O_WRONLY);
+            if (fd == -1) {
+                fprintf(stderr, "unable to open %s: %s\n", output, strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        exit(catch(host, port, fd));
     }
 }
