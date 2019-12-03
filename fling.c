@@ -932,7 +932,7 @@ static int prep_ssh(const char * restrict hostspec, char * restrict hostout,
         ADD_ARG(user);
     }
     ADD_ARG(host);
-    snprintf(controlbuf, sizeof controlbuf, "%s -r 0 > %s", flingbin, path);
+    snprintf(controlbuf, sizeof controlbuf, "%s -r 0 -o '%s'", flingbin, path);
     ADD_ARG(controlbuf);
        
     ADD_ARG(NULL);
@@ -952,8 +952,13 @@ static int prep_ssh(const char * restrict hostspec, char * restrict hostout,
         goto errout_spawn_fling;
     }
 
+    /* if the response already contains a newline, get rid of it */
+    if (controlbuf[controlr - 1] == '\n') {
+        controlbuf[controlr - 1] = '\0';
+    }
+
     controlr = sscanf(controlbuf, "fling ephemeral port %d\n", &eport);
-    if (controlr < 0 || controlr == EOF) {
+    if (controlr <= 0 || controlr == EOF) {
         fprintf(stderr, "unable to parse repsonse of remote fling: %s\n", controlbuf);
         goto errout_spawn_fling;
     }
