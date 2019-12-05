@@ -64,7 +64,7 @@ typedef enum {
     PROGRESS_PRINT,
 } progress_state;
 
-progress_state progress = PROGRESS_NONE;
+static progress_state progress = PROGRESS_NONE;
 
 static void sig_handler(int sig)
 {
@@ -73,6 +73,7 @@ static void sig_handler(int sig)
     }
 }
 
+/* amount of data we try to move at once */
 #define LUMP_SIZE (1024 * 1024)
 
 static void pretty_bytes(off64_t bytes, char * restrict buf, size_t bufz)
@@ -454,7 +455,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     return EXIT_SUCCESS;
 }
 
-static int bind_listen(const char * restrict host, const char * restrict port, int boundport[1])
+static int bind_listen(const char * restrict host, const char * restrict port, int boundport[static 1])
 {
     struct addrinfo hints;
     struct addrinfo *result, *rp;
@@ -483,7 +484,7 @@ static int bind_listen(const char * restrict host, const char * restrict port, i
                 aport, sizeof aport,
                 NI_NUMERICHOST | NI_NUMERICSERV);
             fprintf(stderr, "trying %s %s... ", ahost, aport);
-            fflush(stderr);           
+            fflush(stderr);
         }
 
         sfd = socket(rp->ai_family, rp->ai_socktype,
@@ -572,6 +573,8 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
         .revents = 0,
     };
 
+    close(srv);
+
     struct timespec start_time = { .tv_sec = 0, .tv_nsec = 0 };
 
     if (verbose || progress == PROGRESS_YES) {
@@ -582,7 +585,6 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
 
     if (sock == -1) {
         fprintf(stderr, "accept return failure: %s\n", strerror(errno));
-        close(srv);
         return EXIT_FAILURE;
     }
 
@@ -591,8 +593,6 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
     }
 
     maximise_socket_buffers(sock);
-
-    close(srv);
 
     if (progress == PROGRESS_YES) {
         alarm(1);
@@ -682,6 +682,8 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
                 }
 
                 free(fbuff);
+                close(p[0]);
+                close(p[1]);
 
                 state = CATCH_READWRITE;
             }
@@ -759,7 +761,7 @@ static inline void close_pipe(int pipe[2])
     close(pipe[PIPEW]);
 }
 
-static pid_t spawn_child(const char prog[1], char *const argv[], int fds[3])
+static pid_t spawn_child(const char prog[1], char *const argv[], int fds[static 3])
 {
     int stdinpipe[2], stdoutpipe[2], stderrpipe[2], sigpipe[2];
     pid_t child;
@@ -903,7 +905,10 @@ static int prep_ssh(const char * restrict hostspec, char * restrict hostout,
     strncpy(hostout, host, hostz);
 
 #define ADD_ARG(x) do {\
-    assert(argc < sizeof argv / sizeof (char *));\
+    if (argc > sizeof argv / sizeof (char *)) { \
+        fprintf(stderr, "generated argv too large\n"); \
+        exit(EXIT_FAILURE); /* a nicer way of returning with indicated error needed */ \
+    } \
     argv[argc++] = ((x)); \
     } while(0)
 
