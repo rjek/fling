@@ -200,6 +200,37 @@ static void maximise_pipe_length(int fd)
     }
 }
 
+static int read_number_from_file(const char *path)
+{
+    FILE *f = fopen(path, "r");
+    int v;
+
+    if (f == NULL) {
+        return -1;
+    }
+
+    fscanf(f, "%d", &v);
+    fclose(f);
+    return v;
+}
+
+static void maximise_socket_buffers(int fd)
+{
+    int rmem_max = read_number_from_file("/proc/sys/net/core/rmem_max");
+    int wmem_max = read_number_from_file("/proc/sys/net/core/wmem_max");
+
+    if (rmem_max > 0) {
+        setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rmem_max, sizeof rmem_max);
+    }
+
+    if (wmem_max > 0) {
+        setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &wmem_max, sizeof wmem_max);
+    }
+
+    int v = 1;
+    setsockopt(fd, SOL_TCP, TCP_QUICKACK, &v, sizeof v);
+}
+
 static int connect_dest(const char * restrict host, const char * restrict port) 
 {
     struct addrinfo hints;
@@ -263,8 +294,9 @@ static int connect_dest(const char * restrict host, const char * restrict port)
     freeaddrinfo(result);
 
     s = 1;
-
     setsockopt(sfd, IPPROTO_TCP, TCP_CORK, &s, sizeof(s));
+
+    maximise_socket_buffers(sfd);
 
     return sfd;
 }
@@ -557,6 +589,8 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
     if (verbose) {
         fprintf(stderr, "connection accepted.\n");
     }
+
+    maximise_socket_buffers(sock);
 
     close(srv);
 
