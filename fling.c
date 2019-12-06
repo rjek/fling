@@ -73,7 +73,16 @@ static void sig_handler(int sig)
     }
 }
 
-/* amount of data we try to move at once */
+#define PIPER 0
+#define PIPEW 1
+
+static inline void close_pipe(int pipe[2])
+{
+    close(pipe[PIPER]);
+    close(pipe[PIPEW]);
+}
+
+/* amount of data we try to splice at once */
 #define LUMP_SIZE (1024 * 1024)
 
 static void pretty_bytes(off64_t bytes, char * restrict buf, size_t bufz)
@@ -682,8 +691,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
                 }
 
                 free(fbuff);
-                close(p[0]);
-                close(p[1]);
+                close_pipe(p);
 
                 state = CATCH_READWRITE;
             }
@@ -750,15 +758,6 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
     }
 
     return EXIT_SUCCESS;
-}
-
-#define PIPER 0
-#define PIPEW 1
-
-static inline void close_pipe(int pipe[2])
-{
-    close(pipe[PIPER]);
-    close(pipe[PIPEW]);
 }
 
 static pid_t spawn_child(const char prog[1], char *const argv[], int fds[static 3])
