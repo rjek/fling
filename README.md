@@ -4,7 +4,9 @@ fling -- transfer data from stdin over network to destination quickly
 fling transfers data quickly over a trusted network. It does not
 encrypt the data. It tries to avoid copying data between kernel and
 userspace where it can; you will see the most improvement over other
-tools like netcat on systems with low memory bandwidth.
+tools like netcat on systems with low memory bandwidth.  fling is extremely
+Linux-specific, as almost all the optimisations used beyond what other
+similar tools do are non-portable.
 
 You need to run fling on both ends of the transfer. Run it first on
 the receiver:
