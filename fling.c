@@ -859,9 +859,6 @@ errout_stdoutpipe:
     return -1;
 }
 
-#undef PIPER
-#undef PIPEW
-
 static int prep_ssh(const char * restrict hostspec, char * restrict hostout,
     size_t hostz, char * restrict portout, size_t portz)
 {
