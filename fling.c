@@ -186,8 +186,7 @@ static void print_progress(FILE *f, off64_t bytes, const struct timespec * restr
     }
 
     fflush(f);
-
-    prevz = (prevz > statz) ? prevz : statz;
+    prevz = statz;
 }
 
 static void maximise_pipe_length(int fd)
