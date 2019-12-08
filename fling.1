@@ -80,10 +80,13 @@ support for ssh, and have
 .B fling
 run itself on the remote end, picking a port automatically.
 This avoids having to start it manually, in a different terminal.
+Note that the actual transfer is insecure and doesn't go via ssh.
 .PP
 .nf
 .RS
 fling other.host:data < data
+.RE
+.fi
 .SH ENVIRONMENT
 .B FLING_REMOTE_EXE
 .RS
@@ -98,3 +101,16 @@ Should include full path if not found via PATH.
 Name of command locally to use ssh.
 Defaults to "ssh" if not set.
 .RE
+.SS NOTES
+The SSH support in fling is experimental.
+It may have bugs.
+.PP
+Note that ssh is only used to set up the connection between the
+sending fling and the receiving fling.
+The actual connection through which data is transferred is still a separate
+cleartext connection.
+.PP
+You should not use fling if you mind that data is transferred over an
+unencrypted channel,
+or that an attacker may modify data as it is transferred.
+fling aims to be fast, not secure.
