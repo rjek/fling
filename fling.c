@@ -1106,7 +1106,7 @@ int main(int argc, char *argv[])
         if (output == NULL) {
             fd = STDOUT_FILENO;
         } else {
-            fd = open(output, O_CREAT | O_WRONLY);
+            fd = open(output, O_CREAT | O_WRONLY | O_TRUNC, 00640);
             if (fd == -1) {
                 fprintf(stderr, "unable to open %s: %s\n", output, strerror(errno));
                 exit(EXIT_FAILURE);
