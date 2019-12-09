@@ -35,25 +35,25 @@
 
 static void usage(const char * restrict name, FILE * restrict f)
 {
-    fprintf(f, "usage: %s [options] where\n", name);
-    fprintf(f, "flings data from stdin at a destination quickly over a trusted network.\n\n");
-    fprintf(f, "catches data flung at it and sends it to stdout.\n");
-    fprintf(f, "options:\n");
-    fprintf(f, "  -v\tverbose\n");
-    fprintf(f, "  -r\treceive instead of send\n");
-    fprintf(f, "  -p\tperiodically print transfer progress\n");
-    fprintf(f, "  -o\tspecify an output file rather than stdout\n");
-    fprintf(f, "where:\n");
-    fprintf(f, "  sending: host port\n");
-    fprintf(f, "  sending: [user@]host:destination_file (requires ssh and fling at remote end)\n");
-    fprintf(f, "  receiving: host port\n");
-    fprintf(f, "  receiving: port\n");
-    fprintf(f, "stdin when sending:\n");
-    fprintf(f, "  a UNIX pipe\n");
-    fprintf(f, "  a regular file\n");
-    fprintf(f, "  anything else but that comes with excitement and risk\n");
-    fprintf(f, "stdout when receiving:\n");
-    fprintf(f, "  probably anything that is not a block device.\n");
+    fprintf(f, "usage: %s [options] where\n"
+                "flings data from stdin at a destination quickly over a trusted network.\n\n"
+                "catches data flung at it and sends it to stdout.\n"
+                "options:\n"
+                "  -v\tverbose\n"
+                "  -r\treceive instead of send\n"
+                "  -p\tperiodically print transfer progress\n"
+                "  -o\tspecify an output file rather than stdout\n"
+                "where:\n"
+                "  sending: host port\n"
+                "  sending: [user@]host:destination_file (requires ssh and fling at remote end)\n"
+                "  receiving: host port\n"
+                "  receiving: port\n"
+                "stdin when sending:\n"
+                "  a UNIX pipe\n"
+                "  a regular file\n"
+                "  anything else but that comes with excitement and risk\n"
+                "stdout when receiving:\n"
+                "  probably anything that is not a block device.\n", name);
 }
 
 static bool verbose = false;
