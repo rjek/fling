@@ -127,12 +127,35 @@ static void pretty_timespec(const struct timespec * restrict time, char * restri
     }
 }
 
-static int stats(off64_t bytes, const struct timespec * restrict start_time, char * restrict buf, size_t bufz)
+static int pretty_time_remaining(int time, char * restrict buf, size_t bufz)
+{
+    int days = time / 60 / 60 / 24;
+    int hours = time / 60 / 60 % 24;
+    int minutes = time / 60 % 60;
+    int seconds = time % 60;
+
+    if (days > 0) {
+        return snprintf(buf, bufz, "%d days, %d hours, %d minutes, %d seconds", days, hours, minutes, seconds);
+    }
+
+    if (hours > 0) {
+        return snprintf(buf, bufz, "%d hours, %d minutes, %d seconds", hours, minutes, seconds);       
+    }
+
+    if (minutes > 0) {
+        return snprintf(buf, bufz, "%d minutes, %d seconds", minutes, seconds);       
+    }
+
+    return snprintf(buf, bufz, "%d seconds", seconds);       
+}
+
+static int stats(off64_t bytes, off64_t predicted_size, const struct timespec * restrict start_time, char * restrict buf, size_t bufz)
 {
     struct timespec current_time = { .tv_sec = 0, .tv_nsec = 0 };
     struct timespec passed;
     double passed_in_sec;
-    char pretty_transferred[128], pretty_speed[128], pretty_time[128];
+    off64_t bytes_per_sec;
+    char pretty_transferred[128], pretty_speed[128], pretty_time[128], pretty_remaining[128];
 
     (void) clock_gettime(CLOCK_MONOTONIC_RAW, &current_time);
 
@@ -141,22 +164,32 @@ static int stats(off64_t bytes, const struct timespec * restrict start_time, cha
     passed_in_sec = passed.tv_sec + (passed.tv_nsec * 0.000000001);
 
     pretty_bytes(bytes, pretty_transferred, sizeof pretty_transferred);
-    pretty_bytes(bytes / passed_in_sec, pretty_speed, sizeof pretty_speed);
+    bytes_per_sec = bytes / passed_in_sec;
+    pretty_bytes(bytes_per_sec, pretty_speed, sizeof pretty_speed);
     pretty_timespec(&passed, pretty_time, sizeof pretty_time);
 
-    return snprintf(buf, bufz, "%s (%ld bytes) transferred in %s, %s/sec.", 
-        pretty_transferred, bytes, pretty_time, pretty_speed);
+    if (predicted_size == 0) {
+        return snprintf(buf, bufz, "%s (%ld bytes) in %s, %s/sec", 
+            pretty_transferred, bytes, pretty_time, pretty_speed);
+    } else {
+        float complete = ((double)bytes / (double)predicted_size) * 100;
+        off64_t remaining_bytes = predicted_size - bytes;
+        int remaining_time = remaining_bytes / bytes_per_sec;
+        pretty_time_remaining(remaining_time, pretty_remaining, sizeof pretty_remaining);
+        return snprintf(buf, bufz, "%.1f%% %s (%ld bytes) in %s, %s/sec. %s remaining.", 
+            complete, pretty_transferred, bytes, pretty_time, pretty_speed, pretty_remaining);
+    }
 }
 
 static void print_stats(FILE *f, off64_t bytes, const struct timespec * restrict start_time)
 {
     char buf[128];
-    (void) stats(bytes, start_time, buf, sizeof buf);
+    (void) stats(bytes, 0, start_time, buf, sizeof buf);
     (void) fprintf(f, "%s\n", buf);
     fflush(f);
 }
 
-static void print_progress(FILE *f, off64_t bytes, const struct timespec * restrict start_time)
+static void print_progress(FILE *f, off64_t bytes, off64_t predicted_size, const struct timespec * restrict start_time)
 {
     char buf[128];
     static int prevz = 0;
@@ -176,7 +209,7 @@ static void print_progress(FILE *f, off64_t bytes, const struct timespec * restr
         return;
     }
 
-    statz = stats(bytes, start_time, buf, sizeof buf);
+    statz = stats(bytes, predicted_size, start_time, buf, sizeof buf);
     (void) fprintf(f, "%s", buf);
     
     if (statz < prevz) {
@@ -323,7 +356,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     int sock = connect_dest(host, port);
     
     fling_state state = FLING_PANIC;
-    off64_t total_written = 0;
+    off64_t total_written = 0, predicted_size = 0;
     int r, w;
     char buf[BUFSIZ]; /* only used for read/write mode */
     struct timespec start_time = { .tv_sec = 0, .tv_nsec = 0 };
@@ -335,6 +368,10 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     }
 
     if (progress == PROGRESS_YES) {
+        struct stat statbuf;
+        if (fstat(fd, &statbuf) == 0 && statbuf.st_size > 0) {
+            predicted_size = statbuf.st_size;
+        }
         alarm(1);
     }
 
@@ -372,7 +409,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     do {
         if (progress == PROGRESS_PRINT) {
             progress = PROGRESS_YES;
-            print_progress(stdout, total_written, &start_time);
+            print_progress(stdout, total_written, predicted_size, &start_time);
             alarm(1);
         }
 
@@ -453,7 +490,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     close(sock);
 
     if (progress != PROGRESS_NONE) {
-        print_progress(stdout, 0, NULL);
+        print_progress(stdout, 0, 0, NULL);
     }
 
     if (verbose) {
@@ -618,7 +655,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
     do {
         if (progress == PROGRESS_PRINT) {
             progress = PROGRESS_YES;
-            print_progress(stderr, total_read, &start_time);
+            print_progress(stderr, total_read, 0, &start_time);
             alarm(1);
         }
 
@@ -749,7 +786,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
     close(sock);
 
     if (progress != PROGRESS_NONE) {
-        print_progress(stderr, 0, NULL);
+        print_progress(stderr, 0, 0, NULL);
     }
 
     if (verbose) {
