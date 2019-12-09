@@ -343,7 +343,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
     if ((w = splice(fd, NULL, sock, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE)) == -1) {
         /* splicing not possible */
         if (verbose) {
-            fprintf(stdout, "splicing not possible: %s, trying sendfile\n", strerror(errno));
+            fprintf(stdout, "splicing didn't work (input not a pipe?), trying sendfile instead.\n");
         }
     } else {
         if (w != -1) {
@@ -356,7 +356,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
         if ((w = sendfile(sock, fd, NULL, LUMP_SIZE)) == -1) {
             /* sendfile is not possible */
             if (verbose) {
-                fprintf(stdout, "sendfile is not possible: %s, trying read/write\n", strerror(errno));
+                fprintf(stdout, "sendfile didn't work (input not a file?), trying read/write instead.\n");
             }
         } else {
             state = FLING_SENDFILE;
