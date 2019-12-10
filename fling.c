@@ -83,7 +83,7 @@ static inline void close_pipe(int pipe[2])
 }
 
 /* amount of data we try to splice at once */
-#define LUMP_SIZE (1024 * 1024)
+#define LUMP_SIZE (1024 * 1024) * 4
 
 static void pretty_bytes(off64_t bytes, char * restrict buf, size_t bufz)
 {
@@ -434,7 +434,7 @@ static int fling(const char * restrict host, const char * restrict port, int fd)
             continue;
         
         case FLING_SENDFILE:
-            w = sendfile(sock, fd, NULL, LUMP_SIZE);
+            w = sendfile(sock, fd, NULL, predicted_size > 0 ? predicted_size : LUMP_SIZE);
             if (w == -1) {
                 fprintf(stderr, "sendfile: %s\n", strerror(errno));
                 close(sock);
