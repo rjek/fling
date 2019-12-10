@@ -142,7 +142,7 @@ static int pretty_time_remaining(int time, char * restrict buf, size_t bufz)
         return snprintf(buf, bufz, "%dh%dm%ds", hours, minutes, seconds);
     }
 
-    if (minutes > 0) {}
+    if (minutes > 0) {
         return snprintf(buf, bufz, "%dm%ds", minutes, seconds);
     }
 
