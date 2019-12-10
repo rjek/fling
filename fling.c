@@ -107,7 +107,7 @@ static void pretty_timespec(const struct timespec * restrict time, char * restri
 {
     if (time->tv_sec > 0) {
         double passed = time->tv_sec + (time->tv_nsec * 0.000000001);
-        snprintf(buf, bufz, "%.2f seconds", passed);
+        snprintf(buf, bufz, "%.2fs", passed);
         return;
     }
 
@@ -121,9 +121,9 @@ static void pretty_timespec(const struct timespec * restrict time, char * restri
     }
 
     if (t - floor(t) == 0.0) {
-        snprintf(buf, bufz, "%d %s", (int) t, suffix[sidx]);
+        snprintf(buf, bufz, "%d%s", (int) t, suffix[sidx]);
     } else {
-        snprintf(buf, bufz, "%0.2f %s", t, suffix[sidx]);
+        snprintf(buf, bufz, "%0.2f%s", t, suffix[sidx]);
     }
 }
 
@@ -135,18 +135,18 @@ static int pretty_time_remaining(int time, char * restrict buf, size_t bufz)
     int seconds = time % 60;
 
     if (days > 0) {
-        return snprintf(buf, bufz, "%d days, %d hours, %d minutes, %d seconds", days, hours, minutes, seconds);
+        return snprintf(buf, bufz, "%dd%dh%dm%ds", days, hours, minutes, seconds);
     }
 
     if (hours > 0) {
-        return snprintf(buf, bufz, "%d hours, %d minutes, %d seconds", hours, minutes, seconds);       
+        return snprintf(buf, bufz, "%dh%dm%ds", hours, minutes, seconds);
     }
 
-    if (minutes > 0) {
-        return snprintf(buf, bufz, "%d minutes, %d seconds", minutes, seconds);       
+    if (minutes > 0) {}
+        return snprintf(buf, bufz, "%dm%ds", minutes, seconds);
     }
 
-    return snprintf(buf, bufz, "%d seconds", seconds);       
+    return snprintf(buf, bufz, "%ds", seconds);
 }
 
 static int stats(off64_t bytes, off64_t predicted_size, const struct timespec * restrict start_time, char * restrict buf, size_t bufz)
@@ -169,15 +169,15 @@ static int stats(off64_t bytes, off64_t predicted_size, const struct timespec * 
     pretty_timespec(&passed, pretty_time, sizeof pretty_time);
 
     if (predicted_size == 0) {
-        return snprintf(buf, bufz, "%s (%ld bytes) in %s, %s/sec", 
-            pretty_transferred, bytes, pretty_time, pretty_speed);
+        return snprintf(buf, bufz, "%s in %s, %s/sec",
+            pretty_transferred, pretty_time, pretty_speed);
     } else {
         float complete = ((double)bytes / (double)predicted_size) * 100;
         off64_t remaining_bytes = predicted_size - bytes;
         int remaining_time = remaining_bytes / bytes_per_sec;
         pretty_time_remaining(remaining_time, pretty_remaining, sizeof pretty_remaining);
-        return snprintf(buf, bufz, "%.1f%% %s (%ld bytes) in %s, %s/sec. %s remaining.", 
-            complete, pretty_transferred, bytes, pretty_time, pretty_speed, pretty_remaining);
+        return snprintf(buf, bufz, "%.1f%% %s in %s, %s/s, %s remaining.",
+            complete, pretty_transferred, pretty_time, pretty_speed, pretty_remaining);
     }
 }
 
