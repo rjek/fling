@@ -64,7 +64,7 @@ typedef enum {
     PROGRESS_PRINT,
 } progress_state;
 
-static progress_state progress = PROGRESS_NONE;
+static volatile progress_state progress = PROGRESS_NONE;
 
 static void sig_handler(int sig)
 {
@@ -83,7 +83,7 @@ static inline void close_pipe(int pipe[2])
 }
 
 /* amount of data we try to splice at once */
-#define LUMP_SIZE (1024 * 1024) * 4
+#define LUMP_SIZE ((1024 * 1024) * 4)
 
 static void pretty_bytes(off64_t bytes, char * restrict buf, size_t bufz)
 {
@@ -645,7 +645,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
 
     if (pipe(p) == -1) {
         if (verbose) {
-            fprintf(stderr, "unable to create pipe, falling back to read/read\n");
+            fprintf(stderr, "unable to create pipe, falling back to read/write\n");
         }
         state = CATCH_READWRITE;
     } else {
@@ -662,7 +662,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
         switch (state) {
         case CATCH_SPLICE:
             /* read data from the socket into the pipe */
-            r = splice(sock, NULL, p[1], NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
+            r = splice(sock, NULL, p[PIPEW], NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
             if (r == -1) {
                 /* splicing failed, fall back to read/write */
                 state = CATCH_READWRITE;
@@ -676,6 +676,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
                 if (pr == -1) {
                     fprintf(stderr, "poll: %s\n", strerror(errno));
                     close(sock);
+                    close_pipe(p);
                     return EXIT_FAILURE;
                 }
 
@@ -685,14 +686,14 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
 
                 /* check if there is data waiting */
                 if (recv(sock, buf, sizeof buf, MSG_PEEK | MSG_DONTWAIT) == 0) {
-                    close(p[1]);
+                    close(p[PIPEW]);
                     state = CATCH_SPLICEWRITE;
                     continue;
                 }
             }
 
             /* write data fro the pipe to the output */
-            w = splice(p[0], NULL, fd, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
+            w = splice(p[PIPER], NULL, fd, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
             if (w == -1) {
                 /* writing failed, probably a tty or similar.
                  * read the data back out of the pipe the old fasioned way,
@@ -705,14 +706,16 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
                     fprintf(stderr, "splicing to output failed: %s\n", strerror(spliceerr));
                     fprintf(stderr, "and then allocating memory for fallback failed: %s\n", strerror(errno));
                     close(sock);
+                    close_pipe(p);
                     return EXIT_FAILURE;
                 }
 
-                int fbr = read(p[0], fbuff, r);
+                int fbr = read(p[PIPER], fbuff, r);
 
                 if (fbr != r) {
                     fprintf(stderr, "fallback mode failed, short read from pipe.\n");
                     close(sock);
+                    close_pipe(p);
                     free(fbuff);
                     return EXIT_FAILURE;
                 }
@@ -722,6 +725,7 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
                 if (fbw != r) {
                     fprintf(stderr, "fallback mode failed, short write to output.\n");
                     close(sock);
+                    close_pipe(p);
                     free(fbuff);
                     return EXIT_FAILURE;
                 }
@@ -737,15 +741,17 @@ static int catch(const char * restrict host, const char * restrict port, int fd)
             continue;
 
         case CATCH_SPLICEWRITE:
-            w = splice(p[0], NULL, fd, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
+            w = splice(p[PIPER], NULL, fd, NULL, LUMP_SIZE, SPLICE_F_MOVE | SPLICE_F_MORE);
             if (w == -1) {
                 /* erk, writing failed, abort */
                 fprintf(stderr, "splicing to output failed: %s\n", strerror(errno));
                 close(sock);
+                close(p[PIPEW]);
                 return EXIT_FAILURE;
             }
 
             if (w == 0) {
+                close(p[PIPEW]);
                 state = CATCH_COMPLETE;
             }
 
