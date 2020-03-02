@@ -245,14 +245,19 @@ static void maximise_pipe_length(int fd)
 static int read_number_from_file(const char *path)
 {
     FILE *f = fopen(path, "r");
-    int v;
+    int v, r;
 
     if (f == NULL) {
         return -1;
     }
 
-    fscanf(f, "%d", &v);
+    r = fscanf(f, "%d", &v);
     fclose(f);
+
+    if (r != 1) {
+        return -1;
+    }
+
     return v;
 }
 
@@ -830,17 +835,17 @@ static pid_t spawn_child(const char prog[1], char *const argv[], int fds[static 
     case 0:
         if (dup2(stdinpipe[PIPER], STDIN_FILENO) == -1) {
             oerr = errno;
-            write(sigpipe[PIPEW], "dup2\n", 5);
+            (void) write(sigpipe[PIPEW], "dup2\n", 5);
             exit(oerr);
         }
         if (dup2(stdoutpipe[PIPEW], STDOUT_FILENO) == -1) {
             oerr = errno;
-            write(sigpipe[PIPEW], "dup2\n", 5);
+            (void) write(sigpipe[PIPEW], "dup2\n", 5);
             exit(oerr);
         }
         if (dup2(stderrpipe[PIPEW], STDERR_FILENO) == -1) {
             oerr = errno;
-            write(sigpipe[PIPEW], "dup2\n", 5);
+            (void) write(sigpipe[PIPEW], "dup2\n", 5);
             exit(oerr);
         }
 
@@ -852,7 +857,7 @@ static pid_t spawn_child(const char prog[1], char *const argv[], int fds[static 
 
         (void) execvp(prog, argv);
         oerr = errno;
-        write(sigpipe[PIPEW], "exec\n", 5);
+        (void) write(sigpipe[PIPEW], "exec\n", 5);
         exit(oerr);
 
     default:
