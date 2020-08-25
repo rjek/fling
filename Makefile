@@ -1,4 +1,4 @@
-CFLAGS=-O2 -Wall -Wextra -pedantic -std=c99 -lm -lrt
+CFLAGS += -O2 -Wall -Wextra -pedantic -std=c99 -lm -lrt
 CC=gcc
 
 fling: fling.c
