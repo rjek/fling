@@ -1,5 +1,5 @@
 CFLAGS += -O2 -Wall -Wextra -pedantic -std=c99 -lm -lrt
-CC=gcc
+CC ?= gcc
 
 fling: fling.c
 	$(CC) -o fling $(CFLAGS) fling.c
