@@ -160,7 +160,7 @@ static int stats(off64_t bytes, off64_t predicted_size, const struct timespec * 
     (void) clock_gettime(CLOCK_MONOTONIC_RAW, &current_time);
 
     passed.tv_sec = current_time.tv_sec - start_time->tv_sec;
-    passed.tv_nsec = current_time.tv_nsec - start_time->tv_sec;
+    passed.tv_nsec = current_time.tv_nsec - start_time->tv_nsec;
     passed_in_sec = passed.tv_sec + (passed.tv_nsec * 0.000000001);
 
     pretty_bytes(bytes, pretty_transferred, sizeof pretty_transferred);
