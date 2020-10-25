@@ -1,4 +1,5 @@
-CFLAGS += -O2 -Wall -Wextra -pedantic -std=c99 -lm -lrt
+CFLAGS += -O2 -Wall -Wextra -pedantic -std=c99
+LIBS += -lm -lrt
 CC ?= gcc
 INSTALL ?= install
 DESTDIR ?=
@@ -7,7 +8,7 @@ exec_prefix ?= $(prefix)
 bindir = $(exec_prefix)/bin
 
 fling: fling.c
-	$(CC) -o fling $(CFLAGS) fling.c
+	$(CC) -o fling $(CFLAGS) fling.c $(LIBS)
 
 clean:
 	rm -f fling
